@@ -1,0 +1,56 @@
+# --------------------------------------------------------------------------
+# Production-ready composition: backend API + Streamlit frontend, with an
+# optional Redis cache. Persistent volumes keep uploaded PDFs, the vector
+# index, and the SQLite metadata database across restarts.
+# --------------------------------------------------------------------------
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    image: research-assistant-backend:latest
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      APP_HOST: 0.0.0.0
+      APP_PORT: "8000"
+    ports:
+      # Host port is configurable to avoid clashes with other local services.
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - uploads:/app/storage/uploads
+      - vectorstore:/app/storage/vectorstore
+      - database:/app/storage/database
+      - logs:/app/storage/logs
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    image: research-assistant-frontend:latest
+    environment:
+      # The browser and the frontend container both reach the API via this URL.
+      API_BASE_URL: http://backend:8000
+    ports:
+      # Host port is configurable to avoid clashes with other local services.
+      - "${FRONTEND_PORT:-8501}:8501"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Optional cache. Enabled only when REDIS_ENABLED=true in the environment.
+  redis:
+    image: redis:7-alpine
+    profiles: ["cache"]
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  uploads:
+  vectorstore:
+  database:
+  logs:

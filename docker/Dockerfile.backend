@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+# --------------------------------------------------------------------------
+# Backend image: FastAPI + full ML stack (embeddings, FAISS, PDF).
+# Multi-stage build keeps the runtime image lean and non-root for security.
+# --------------------------------------------------------------------------
+FROM python:3.12-slim AS base
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# System deps required by PyMuPDF / faiss / sentence-transformers at runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies first for better layer caching.
+COPY pyproject.toml README.md ./
+COPY app ./app
+# Install CPU-only PyTorch from the dedicated index BEFORE the ML extra. The
+# default torch wheel bundles ~1.5GB of CUDA libraries we don't need (we run
+# on CPU), so pinning the CPU build keeps the image small and the build fast.
+RUN pip install --upgrade pip \
+    && pip install --index-url https://download.pytorch.org/whl/cpu torch \
+    && pip install ".[ml]"
+
+# Drop privileges: run as a dedicated non-root user.
+RUN useradd --create-home --uid 10001 appuser \
+    && mkdir -p storage/uploads storage/vectorstore storage/database storage/logs \
+    && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+# Container-level health check hitting the API's health endpoint.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -fsS http://localhost:8000/api/health || exit 1
+
+CMD ["uvicorn", "app.backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

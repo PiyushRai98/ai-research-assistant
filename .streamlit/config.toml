@@ -1,0 +1,17 @@
+# Base Streamlit theme aligned with DESIGN.md: pure white canvas, black ink,
+# Inter (figmaSans substitute). Fine-grained component styling is applied via
+# injected CSS in app/frontend/theme.py.
+[theme]
+base = "light"
+primaryColor = "#000000"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f7f7f5"
+textColor = "#000000"
+font = "sans serif"
+
+[server]
+headless = true
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false
