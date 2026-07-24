@@ -7,13 +7,12 @@ import time
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException, status
-
 from app.backend.auth import GUEST, _b64encode, _sign, issue_token, verify_token
 from app.backend.dependencies import current_owner
 from app.backend.routers.auth import LoginRequest, login
 from app.shared.config import Settings
 from app.shared.exceptions import AuthenticationError
+from fastapi import HTTPException, status
 
 
 def test_issue_and_verify_token_round_trip() -> None:
@@ -40,7 +39,9 @@ def test_verify_token_rejects_malformed_signature_and_corrupt_payload() -> None:
 
 def test_verify_token_rejects_expired_token() -> None:
     settings = Settings(auth_enabled=True, auth_secret_key="secret")
-    payload_b64 = _b64encode(json.dumps({"sub": "alice", "exp": int(time.time()) - 1}).encode("utf-8"))
+    payload_b64 = _b64encode(
+        json.dumps({"sub": "alice", "exp": int(time.time()) - 1}).encode("utf-8")
+    )
     signature = _sign(payload_b64, settings.auth_secret_key)
     with pytest.raises(AuthenticationError, match="expired"):
         verify_token(f"{payload_b64}.{signature}", settings=settings)
