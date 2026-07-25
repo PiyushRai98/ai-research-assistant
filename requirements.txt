@@ -1,0 +1,14 @@
+# Streamlit Community Cloud dependency file.
+#
+# Community Cloud only runs app/frontend/app.py (the Streamlit UI); the
+# FastAPI backend, PDF/embedding/vector-store stack, and LLM clients are not
+# used on this platform and must be deployed separately (Docker, a VM, or any
+# Python host) with API_BASE_URL pointed at that deployment.
+#
+# IMPORTANT: A requirements.txt at the repo root takes precedence over
+# pyproject.toml on Community Cloud, which otherwise tries to install this
+# project with Poetry and fails (our pyproject.toml uses a setuptools/PEP 621
+# layout with the package under app/, not a Poetry-style root package).
+# See: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies
+streamlit==1.60.0
+httpx==0.28.1

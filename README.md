@@ -84,6 +84,22 @@ docker compose up --build
 # Frontend: http://localhost:8501   API: http://localhost:8000
 ```
 
+### Deploying the frontend to Streamlit Community Cloud
+
+The backend (FastAPI + ML stack) is not hosted by Community Cloud — deploy it
+separately (Docker, a VM, Render, Fly.io, etc.), then point the UI at it:
+
+1. Deploy `app/backend` wherever you like and note its public URL.
+2. Deploy this repo to Community Cloud with entrypoint `app/frontend/app.py`.
+3. In the app's "Advanced settings", set the secret/env var
+   `API_BASE_URL=https://your-backend-host`.
+
+Community Cloud uses the root-level [`requirements.txt`](requirements.txt) —
+a minimal file containing only `streamlit` and `httpx`, since the frontend is
+a thin API client. It intentionally does **not** use `pyproject.toml` (which
+Community Cloud would otherwise try to install via Poetry and fail, since this
+project uses a setuptools/PEP 621 layout, not a Poetry package layout).
+
 ## Configuration
 
 Everything is configurable via environment variables (validated in
