@@ -5,10 +5,10 @@ from __future__ import annotations
 import streamlit as st
 
 from app.frontend import components as ui
-from app.frontend.api_client import APIClient, APIError
+from app.frontend.api_client import APIError, ResearchClient
 
 
-def _indexed_docs(client: APIClient) -> dict[str, str]:
+def _indexed_docs(client: ResearchClient) -> dict[str, str]:
     docs = client.list_documents()["documents"]
     return {
         d["id"]: (d["metadata"].get("title") or d["filename"])
@@ -22,7 +22,7 @@ def _show_answer(result: dict) -> None:
     ui.citation_list(result.get("citations", []))
 
 
-def render(client: APIClient) -> None:
+def render(client: ResearchClient) -> None:
     """Render the AI research tools."""
     ui.display_title("AI research tools", size="display-lg")
 

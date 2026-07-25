@@ -173,18 +173,37 @@ class NumpyVectorStore(VectorStore):
             ) from exc
 
     def load(self) -> None:
+        """Load a persisted NumPy index, starting empty on any incompatibility.
+
+        ``chunks.pkl`` uses the same filename across backends but a different
+        payload shape (FAISS stores a dict, NumPy a list). If the vector store
+        backend changes between runs (e.g. FAISS becomes unavailable), the
+        sidecar files are simply stale rather than corrupt. Per the "never
+        crash, degrade gracefully" requirement, any mismatch results in an
+        empty store with a warning instead of a crash — the index is rebuilt
+        as documents are re-processed.
+        """
         vectors_path = self._path / _VECTORS_FILE
         chunks_path = self._path / _CHUNKS_FILE
         if not chunks_path.exists():
             return
         try:
-            self._vectors = np.load(vectors_path) if vectors_path.exists() else None
             with chunks_path.open("rb") as handle:
-                self._chunks = [Chunk.model_validate(d) for d in pickle.load(handle)]  # nosec B301
-        except (OSError, pickle.PickleError) as exc:
-            raise VectorStoreError(
-                "Failed to load vector store", details={"error": str(exc)}
-            ) from exc
+                payload = pickle.load(handle)  # nosec B301
+            if not isinstance(payload, list):
+                raise TypeError("chunks.pkl does not contain a NumPy-store payload")
+            self._chunks = [Chunk.model_validate(d) for d in payload]
+            self._vectors = np.load(vectors_path) if vectors_path.exists() else None
+        except (OSError, pickle.PickleError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Could not load an existing vector store at {path} (likely saved "
+                "by a different backend); starting with an empty index. Re-process "
+                "your documents to rebuild it. Error: {error}",
+                path=self._path,
+                error=str(exc),
+            )
+            self._chunks = []
+            self._vectors = None
 
 
 class FAISSVectorStore(VectorStore):
@@ -315,20 +334,35 @@ class FAISSVectorStore(VectorStore):
             ) from exc
 
     def load(self) -> None:
+        """Load a persisted FAISS index, starting empty on any incompatibility.
+
+        See :meth:`NumpyVectorStore.load` for why a payload-shape mismatch is
+        treated as "stale sidecar files" rather than corruption: it degrades to
+        an empty, rebuildable index instead of crashing the application.
+        """
         index_path = self._path / "index.faiss"
         chunks_path = self._path / _CHUNKS_FILE
         if not index_path.exists() or not chunks_path.exists():
             return
         try:
-            self._index = self._faiss.read_index(str(index_path))
+            index = self._faiss.read_index(str(index_path))
             with chunks_path.open("rb") as handle:
                 payload = pickle.load(handle)  # nosec B301
+            if not isinstance(payload, dict) or "chunks" not in payload:
+                raise TypeError("chunks.pkl does not contain a FAISS-store payload")
+            self._index = index
             self._next_id = payload["next_id"]
             self._chunks = {int(k): Chunk.model_validate(v) for k, v in payload["chunks"].items()}
-        except (OSError, pickle.PickleError, KeyError) as exc:
-            raise VectorStoreError(
-                "Failed to load FAISS index", details={"error": str(exc)}
-            ) from exc
+        except (OSError, pickle.PickleError, TypeError, KeyError, ValueError) as exc:
+            logger.warning(
+                "Could not load an existing FAISS index at {path} (likely saved "
+                "by a different backend); starting with an empty index. Re-process "
+                "your documents to rebuild it. Error: {error}",
+                path=self._path,
+                error=str(exc),
+            )
+            self._chunks = {}
+            self._next_id = 0
 
 
 def build_vector_store(

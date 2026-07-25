@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from app.frontend import components as ui
-from app.frontend.api_client import APIClient, APIError
+from app.frontend.api_client import APIError, ResearchClient
 
 _STATUS_LABEL = {
     "indexed": "● Indexed",
@@ -15,7 +15,7 @@ _STATUS_LABEL = {
 }
 
 
-def render(client: APIClient) -> None:
+def render(client: ResearchClient) -> None:
     """Render the document library and uploader."""
     ui.display_title("Documents", size="display-lg")
     ui.body(

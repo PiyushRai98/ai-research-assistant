@@ -69,6 +69,24 @@ def test_persistence_round_trip(tmp_path) -> None:
     assert reloaded._chunks[0].text == "persist me"
 
 
+def test_numpy_store_degrades_on_foreign_backend_pickle(tmp_path) -> None:
+    """A chunks.pkl saved by the FAISS backend must not crash the NumPy store.
+
+    Both backends persist to the same filename with different payload shapes
+    (FAISS: dict, NumPy: list). Switching backends between runs (e.g. FAISS
+    becomes unavailable) must degrade to an empty, rebuildable index rather
+    than raising — per the "never crash" requirement.
+    """
+    import pickle
+
+    (tmp_path / "chunks.pkl").write_bytes(
+        pickle.dumps({"next_id": 3, "chunks": {"0": {"foo": "bar"}}})
+    )
+    store = NumpyVectorStore(tmp_path)
+    store.load()  # must not raise
+    assert store.count() == 0
+
+
 def test_mmr_prefers_diversity() -> None:
     # Two near-identical relevant vectors + one distinct; MMR should not pick
     # both duplicates before the distinct one.

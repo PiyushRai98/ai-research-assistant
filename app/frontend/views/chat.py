@@ -5,10 +5,10 @@ from __future__ import annotations
 import streamlit as st
 
 from app.frontend import components as ui
-from app.frontend.api_client import APIClient, APIError
+from app.frontend.api_client import APIError, ResearchClient
 
 
-def _document_picker(client: APIClient) -> list[str]:
+def _document_picker(client: ResearchClient) -> list[str]:
     """Render a multiselect of indexed documents; return selected ids."""
     try:
         docs = client.list_documents()["documents"]
@@ -26,7 +26,7 @@ def _document_picker(client: APIClient) -> list[str]:
     return selected
 
 
-def render(client: APIClient) -> None:
+def render(client: ResearchClient) -> None:
     """Render the chat interface."""
     ui.display_title("Chat with your papers", size="display-lg")
 

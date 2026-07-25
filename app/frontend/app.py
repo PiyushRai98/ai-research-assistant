@@ -23,7 +23,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 import streamlit as st  # noqa: E402
 
 from app.frontend import components as ui  # noqa: E402
-from app.frontend.api_client import APIClient, APIError  # noqa: E402
+from app.frontend.api_client import APIClient, APIError, ResearchClient  # noqa: E402
 from app.frontend.theme import build_css  # noqa: E402
 from app.frontend.views import (  # noqa: E402
     ai_tools,
@@ -48,10 +48,25 @@ PAGES = {
 
 
 @st.cache_resource
-def get_client() -> APIClient:
-    """Return a cached API client pointed at the configured backend."""
+def get_client() -> tuple[ResearchClient, bool]:
+    """Resolve the client to use, preferring a remote backend when reachable.
+
+    Returns ``(client, embedded)``. When ``API_BASE_URL`` points at a live
+    FastAPI backend, that HTTP client is used (multi-user, scalable). When no
+    backend responds — notably on Streamlit Community Cloud, which can only
+    run this single process — the frontend transparently falls back to an
+    in-process :class:`EmbeddedClient` that runs the same application services
+    directly, so the app remains fully functional with zero separate hosting.
+    """
     base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
-    return APIClient(base_url)
+    remote = APIClient(base_url)
+    try:
+        remote.health()
+        return remote, False
+    except APIError:
+        from app.frontend.embedded_client import EmbeddedClient
+
+        return EmbeddedClient(), True
 
 
 def _render_nav() -> str:
@@ -85,21 +100,22 @@ def main() -> None:
     )
     st.markdown(build_css(), unsafe_allow_html=True)
 
-    client = get_client()
+    client, embedded = get_client()
 
     # Connectivity banner (marquee ribbon per DESIGN.md).
     try:
         health = client.health()
-        ui.marquee(
-            [
-                "AI RESEARCH ASSISTANT",
-                f"LLM · {health['llm'].upper()}",
-                f"EMBEDDINGS · {health['embedding_model'].split('/')[-1].upper()}",
-                "RAG WITH CITATIONS",
-            ]
-        )
+        items = [
+            "AI RESEARCH ASSISTANT",
+            f"LLM · {health['llm'].upper()}",
+            f"EMBEDDINGS · {health['embedding_model'].split('/')[-1].upper()}",
+            "RAG WITH CITATIONS",
+        ]
+        if embedded:
+            items.insert(1, "EMBEDDED MODE — RUNNING LOCALLY IN THIS PROCESS")
+        ui.marquee(items)
     except APIError:
-        ui.marquee(["BACKEND OFFLINE — START THE API WITH: uvicorn app.backend.main:app"])
+        ui.marquee(["BACKEND UNAVAILABLE — RELOAD TO RETRY"])
 
     page = _render_nav()
     eyebrow_tag, render = PAGES[page]

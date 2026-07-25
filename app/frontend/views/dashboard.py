@@ -5,7 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from app.frontend import components as ui
-from app.frontend.api_client import APIClient, APIError
+from app.frontend.api_client import APIError, ResearchClient
 
 
 def _human_bytes(num: int) -> str:
@@ -17,7 +17,7 @@ def _human_bytes(num: int) -> str:
     return f"{value:.1f} GB"
 
 
-def render(client: APIClient) -> None:
+def render(client: ResearchClient) -> None:
     """Render the overview dashboard."""
     ui.display_title("Your research, at a glance", size="display-lg")
 

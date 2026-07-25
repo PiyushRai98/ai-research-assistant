@@ -1,14 +1,49 @@
 # Streamlit Community Cloud dependency file.
 #
-# Community Cloud only runs app/frontend/app.py (the Streamlit UI); the
-# FastAPI backend, PDF/embedding/vector-store stack, and LLM clients are not
-# used on this platform and must be deployed separately (Docker, a VM, or any
-# Python host) with API_BASE_URL pointed at that deployment.
+# Community Cloud runs exactly ONE process, so it cannot host the FastAPI
+# backend alongside the Streamlit UI. app/frontend/app.py detects this: it
+# tries the configured API_BASE_URL first, and if nothing responds, it falls
+# back to an in-process EmbeddedClient (app/frontend/embedded_client.py) that
+# runs the same application services directly inside this process.
+#
+# This file intentionally installs the CORE dependencies only (no ML extra:
+# no torch/sentence-transformers/faiss). In embedded mode without the ML
+# extra, the app automatically degrades to its offline-graceful adapters:
+#   - deterministic hashing embeddings instead of BGE/MiniLM neural embeddings
+#   - a NumPy vector store instead of FAISS
+#   - the offline "echo" LLM (task-aware, grounded, cited answers) instead of
+#     a live Granite/Llama endpoint
+# Search and citations remain fully functional and cited; only the semantic
+# quality of embeddings/generation is reduced. This keeps Cloud builds fast
+# and reliable (no multi-hundred-MB model downloads at build time).
+#
+# For full semantic search + a real LLM on Community Cloud, set the ML extra
+# packages below (uncomment) — build time and memory use increase
+# substantially, and Cloud's free tier may not have enough RAM for torch.
+#
+# For a production deployment with the real backend, host app/backend
+# separately (Docker, a VM, Render, Fly.io, etc.) and set API_BASE_URL in
+# this app's "Advanced settings" secrets; the embedded fallback is then
+# never used.
 #
 # IMPORTANT: A requirements.txt at the repo root takes precedence over
 # pyproject.toml on Community Cloud, which otherwise tries to install this
 # project with Poetry and fails (our pyproject.toml uses a setuptools/PEP 621
 # layout with the package under app/, not a Poetry-style root package).
 # See: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/app-dependencies
+
 streamlit==1.60.0
 httpx==0.28.1
+fastapi==0.139.2
+pydantic==2.9.2
+pydantic-settings==2.12.0
+python-multipart==0.0.32
+loguru==0.7.3
+PyMuPDF==1.28.0
+numpy==2.1.2
+tenacity==9.1.2
+python-dotenv==1.0.1
+
+# --- Optional: uncomment for real neural embeddings + FAISS (slower build) ---
+# sentence-transformers>=3.0
+# faiss-cpu>=1.8

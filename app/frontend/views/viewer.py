@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import base64
-import os
 
-import httpx
 import streamlit as st
 
 from app.frontend import components as ui
-from app.frontend.api_client import APIClient, APIError
+from app.frontend.api_client import APIError, ResearchClient
 
 
 def _pdf_iframe(data: bytes, *, page: int) -> str:
@@ -23,7 +21,7 @@ def _pdf_iframe(data: bytes, *, page: int) -> str:
     )
 
 
-def render(client: APIClient) -> None:
+def render(client: ResearchClient) -> None:
     """Render the PDF viewer with page navigation."""
     ui.display_title("Document viewer", size="display-lg")
 
@@ -37,7 +35,7 @@ def render(client: APIClient) -> None:
         ui.empty_state(
             variant="pink",
             title="Nothing to preview",
-            message="Upload a document to read it here and jump straight to " "cited pages.",
+            message="Upload a document to read it here and jump straight to cited pages.",
         )
         return
 
@@ -45,12 +43,10 @@ def render(client: APIClient) -> None:
     doc_id = st.selectbox("Document", options=list(labels.keys()), format_func=lambda i: labels[i])
     page = st.number_input("Jump to page", min_value=1, value=1, step=1)
 
-    base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
     try:
-        response = httpx.get(f"{base_url}/api/documents/{doc_id}/file", timeout=60)
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
-        st.error(f"Could not load the PDF: {exc}")
+        data = client.document_file_bytes(doc_id)
+    except APIError as exc:
+        st.error(f"Could not load the PDF: {exc.message}")
         return
 
-    st.markdown(_pdf_iframe(response.content, page=int(page)), unsafe_allow_html=True)
+    st.markdown(_pdf_iframe(data, page=int(page)), unsafe_allow_html=True)

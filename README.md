@@ -84,21 +84,40 @@ docker compose up --build
 # Frontend: http://localhost:8501   API: http://localhost:8000
 ```
 
-### Deploying the frontend to Streamlit Community Cloud
+### Deploying to Streamlit Community Cloud
 
-The backend (FastAPI + ML stack) is not hosted by Community Cloud — deploy it
-separately (Docker, a VM, Render, Fly.io, etc.), then point the UI at it:
+Community Cloud runs a single process, so it cannot host the FastAPI backend
+alongside the UI. The frontend handles this automatically:
 
-1. Deploy `app/backend` wherever you like and note its public URL.
-2. Deploy this repo to Community Cloud with entrypoint `app/frontend/app.py`.
-3. In the app's "Advanced settings", set the secret/env var
-   `API_BASE_URL=https://your-backend-host`.
+- On startup it checks `API_BASE_URL` (default `http://localhost:8000`).
+- If a real backend responds, it's used as normal (multi-user, scalable).
+- If nothing responds — the case on Community Cloud — the app transparently
+  falls back to an **embedded, in-process mode**: the same application
+  services (document processing, RAG, citations, AI tools) run directly
+  inside the Streamlit process via `app/frontend/embedded_client.py`. A
+  marquee banner indicates when embedded mode is active.
 
-Community Cloud uses the root-level [`requirements.txt`](requirements.txt) —
-a minimal file containing only `streamlit` and `httpx`, since the frontend is
-a thin API client. It intentionally does **not** use `pyproject.toml` (which
-Community Cloud would otherwise try to install via Poetry and fail, since this
-project uses a setuptools/PEP 621 layout, not a Poetry package layout).
+So you can deploy this repo to Community Cloud as-is with entrypoint
+`app/frontend/app.py` and it will work standalone, single-user, backed by
+SQLite + a local vector index stored in the app's ephemeral filesystem.
+
+Community Cloud uses the root-level [`requirements.txt`](requirements.txt)
+instead of `pyproject.toml` (which it would otherwise try to install via
+Poetry and fail, since this project uses a setuptools/PEP 621 layout, not a
+Poetry package layout). By default it installs only the **core** dependencies
+(no `torch`/`sentence-transformers`/`faiss`), so embedded mode uses the
+offline-graceful adapters — deterministic hashing embeddings, a NumPy vector
+store, and the task-aware offline "echo" LLM. Search and citations stay fully
+functional and grounded; only embedding/generation quality is reduced. To get
+real neural embeddings and a live LLM instead, either:
+
+- **Multi-user / production**: host `app/backend` separately (Docker, a VM,
+  Render, Fly.io, etc.) and set `API_BASE_URL` in the app's "Advanced
+  settings" secrets — the embedded fallback is then never used.
+- **Single-user on Cloud**: uncomment the `sentence-transformers`/`faiss-cpu`
+  lines in `requirements.txt` (increases build time and memory use) and set
+  `LLM_API_BASE`/`LLM_API_KEY` secrets pointing at a hosted OpenAI-compatible
+  endpoint.
 
 ## Configuration
 

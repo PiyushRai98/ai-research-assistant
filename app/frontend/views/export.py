@@ -5,10 +5,10 @@ from __future__ import annotations
 import streamlit as st
 
 from app.frontend import components as ui
-from app.frontend.api_client import APIClient, APIError
+from app.frontend.api_client import APIError, ResearchClient
 
 
-def render(client: APIClient) -> None:
+def render(client: ResearchClient) -> None:
     """Render the export interface for conversations."""
     ui.display_title("Export", size="display-lg")
     ui.body(
